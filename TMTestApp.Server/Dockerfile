@@ -8,31 +8,27 @@ EXPOSE 8080
 EXPOSE 8081
 
 
-# This stage is used to build the service project
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS with-node
-RUN apt-get update
-RUN apt-get install curl
-RUN curl -sL https://deb.nodesource.com/setup_20.x | bash
-RUN apt-get -y install nodejs
-
-
-FROM with-node AS build
-ARG BUILD_CONFIGURATION=Release
+# Stage 1: Build
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["TMTestApp.Server/TMTestApp.Server.csproj", "TMTestApp.Server/"]
-COPY ["tmtestapp.client/tmtestapp.client.esproj", "tmtestapp.client/"]
-RUN dotnet restore "./TMTestApp.Server/TMTestApp.Server.csproj"
+
+# Copy csproj and restore dependencies
+COPY TMTestApp.Server.csproj .
+RUN dotnet restore "TMTestApp.Server.csproj"
+
+# Copy everything else and build
 COPY . .
-WORKDIR "/src/TMTestApp.Server"
-RUN dotnet build "./TMTestApp.Server.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet publish "TMTestApp.Server.csproj" -c Release -o /out
 
-# This stage is used to publish the service project to be copied to the final stage
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./TMTestApp.Server.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
-
-# This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
-FROM base AS final
+# Stage 2: Runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
-COPY --from=publish /app/publish .
+
+# Copy published output from build stage
+COPY --from=build /out .
+
+# Set environment
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+
 ENTRYPOINT ["dotnet", "TMTestApp.Server.dll"]
