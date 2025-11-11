@@ -1,0 +1,6 @@
+@TMTestApp.Server_HostAddress = http://localhost:5188
+
+GET {{TMTestApp.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
